@@ -1,0 +1,4 @@
+xWR6843
+3D People Tracking
+C:/ti/radar_toolbox_2_20_00_05/source/ti/examples/People_Tracking/Overhead_3D_People_Tracking/chirp_configs/pt_6843_3d_aop_overhead_3m_radial_staticRetention.cfg
+False
