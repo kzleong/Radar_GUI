@@ -109,10 +109,10 @@ def parseStandardFrame(frameData):
             outputDict['error'] = 2
             return {}
 
-        print(tlvType)
-        print(tlvLength)
-        print(frameData[:tlvLength])
-        print(outputDict)
+        # print(tlvType)
+        # print(tlvLength)
+        # print(frameData[:tlvLength])
+        # print(outputDict)
 
 
         if (tlvType in parserFunctions):

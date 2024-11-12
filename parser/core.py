@@ -31,7 +31,8 @@ from PySide2.QtWidgets import (
 # Local Imports
 from common.cached_data import CachedDataType
 from common.demo_defines import *
-from common.gui_threads import *
+from threads import *
+from uart_parser import UARTParser
 from common.parseFrame import parseStandardFrame
 from common.Common_Tabs.plot_1d import Plot1D
 from common.Common_Tabs.plot_2d import Plot2D
@@ -204,33 +205,16 @@ class Core:
                 if args[0] == "trackingCfg":
                     if len(args) < 5:
                         log.error("trackingCfg had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseTrackingCfg(args)
                 elif args[0] == "SceneryParam" or args[0] == "boundaryBox":
                     if len(args) < 7:
                         log.error(
                             "SceneryParam/boundaryBox had fewer arguments than expected"
                         )
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseBoundaryBox(args)
                 elif args[0] == "frameCfg":
                     if len(args) < 4:
                         log.error("frameCfg had fewer arguments than expected")
                     else:
                         self.frameTime = float(args[5]) / 2
-                elif args[0] == "sensorPosition":
-                    # sensorPosition for x843 family has 3 args
-                    if DEVICE_DEMO_DICT[self.device]["isxWRx843"] and len(args) < 4:
-                        log.error("sensorPosition had fewer arguments than expected")
-                    elif DEVICE_DEMO_DICT[self.device]["isxWRLx432"] and len(args) < 6:
-                        log.error("sensorPosition had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseSensorPosition(
-                                args, DEVICE_DEMO_DICT[self.device]["isxWRx843"]
-                            )
                 # Only used for Small Obstacle Detection
                 elif args[0] == "occStateMach":
                     numZones = int(args[1])
@@ -238,67 +222,22 @@ class Core:
                 elif args[0] == "zoneDef":
                     if len(args) < 8:
                         log.error("zoneDef had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseBoundaryBox(args)
                 elif args[0] == "mpdBoundaryBox":
                     if len(args) < 8:
                         log.error("mpdBoundaryBox had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseBoundaryBox(args)
                 elif args[0] == "chirpComnCfg":
                     if len(args) < 8:
                         log.error("chirpComnCfg had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseChirpComnCfg(args)
                 elif args[0] == "chirpTimingCfg":
                     if len(args) < 6:
                         log.error("chirpTimingCfg had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseChirpTimingCfg(args)
-                # TODO This is specifically guiMonitor for 60Lo, this parsing will break the gui when an SDK 3 config is sent
-                elif args[0] == "guiMonitor":
-                    if DEVICE_DEMO_DICT[self.device]["isxWRLx432"]:
-                        if len(args) < 12:
-                            log.error("guiMonitor had fewer arguments than expected")
-                        else:
-                            with suppress(AttributeError):
-                                self.demoClassDict[self.demo].parseGuiMonitor(args)
-                elif args[0] == "presenceDetectCfg":
-                    with suppress(AttributeError):
-                        self.demoClassDict[self.demo].parsePresenceDetectCfg(args)
-                elif args[0] == "sigProcChainCfg2":
-                    with suppress(AttributeError):
-                        self.demoClassDict[self.demo].parseSigProcChainCfg2(args)
                 elif args[0] == "mpdBoundaryArc":
                     if len(args) < 8:
                         log.error("mpdBoundaryArc had fewer arguments than expected")
-                    else:
-                        with suppress(AttributeError):
-                            self.demoClassDict[self.demo].parseBoundaryBox(args)
-                elif args[0] == "measureRangeBiasAndRxChanPhase":
-                    with suppress(AttributeError):
-                        self.demoClassDict[self.demo].parseRangePhaseCfg(args)
-                elif args[0] == "clutterRemoval":
-                    with suppress(AttributeError):
-                        self.demoClassDict[self.demo].parseClutterRemovalCfg(args)
-                elif args[0] == "sigProcChainCfg":
-                    with suppress(AttributeError):
-                        self.demoClassDict[self.demo].parseSigProcChainCfg(args)
-                elif args[0] == "channelCfg":
-                    with suppress(AttributeError):
-                        self.demoClassDict[self.demo].parseChannelCfg(args)
-
-        # Initialize 1D plot values based on cfg file
-        with suppress(AttributeError):
-            self.demoClassDict[self.demo].setRangeValues()
 
     def selectCfg(self, filename):
         try:
-            file = self.selectFile(filename)
+            file = filename
             self.cachedData.setCachedCfgPath(file)  # cache the file and demo used
             self.parseCfg(file)
         except Exception as e:
@@ -316,7 +255,7 @@ class Core:
             if self.demo != "Replay":
                 self.parser.sendCfg(self.cfg)
                 sys.stdout.flush()
-                self.parseTimer.start(int(self.frameTime))  # need this line
+                # self.parseTimer.start(int(self.frameTime))  # need this line
         except Exception as e:
             log.error(e)
             log.error("Parsing .cfg file failed. Did you select the right file?")
@@ -324,35 +263,29 @@ class Core:
     def updateGraph(self, outputDict):
         self.demoClassDict[self.demo].updateGraph(outputDict)
 
-    def connectCom(self, cliCom, dataCom, connectStatus):
+    def connectCom(self, cliCom, dataCom):
         if self.demo == DEMO_GESTURE:
             self.frameTime = 25  # Gesture demo runs at 35ms frame time
         # init threads and timers
         self.uart_thread = parseUartThread(self.parser)
 
-        self.uart_thread.fin.connect(self.updateGraph)
-        self.parseTimer = QTimer()
-        self.parseTimer.setSingleShot(False)
-        self.parseTimer.timeout.connect(self.parseData)
-        try:
-            if os.name == "nt":
-                uart = "COM" + cliCom.text()
-                data = "COM" + dataCom.text()
+        # self.uart_thread.fin.connect(self.updateGraph)
+        # self.parseTimer = QTimer()
+        # self.parseTimer.setSingleShot(False)
+        # self.parseTimer.timeout.connect(self.parseData)
+        if os.name == "nt":
+            uart = "COM" + cliCom
+            data = "COM" + dataCom
+        else:
+            uart = cliCom
+            data = dataCom
+        if DEVICE_DEMO_DICT[self.device]["isxWRx843"]:  # If using x843 device
+            self.parser.connectComPorts(uart, data)
+        else:  # If not x843 device then defer to x432 device
+            if self.demo == DEMO_GESTURE or self.demo == DEMO_KTO or self.demo == DEMO_TWO_PASS_VIDEO_DOORBELL or self.demo == DEMO_VIDEO_DOORBELL:
+                self.parser.connectComPort(uart, 1250000)
             else:
-                uart = cliCom.text()
-                data = dataCom.text()
-            if DEVICE_DEMO_DICT[self.device]["isxWRx843"]:  # If using x843 device
-                self.parser.connectComPorts(uart, data)
-            else:  # If not x843 device then defer to x432 device
-                if self.demo == DEMO_GESTURE or self.demo == DEMO_KTO or self.demo == DEMO_TWO_PASS_VIDEO_DOORBELL or self.demo == DEMO_VIDEO_DOORBELL:
-                    self.parser.connectComPort(uart, 1250000)
-                else:
-                    self.parser.connectComPort(uart)
-            connectStatus.setText("Connected")
-        except Exception as e:
-            log.error(e)
-            connectStatus.setText("Unable to Connect")
-            return -1
+                self.parser.connectComPort(uart)
 
         return 0
 
@@ -397,7 +330,7 @@ class Core:
         self.replayFrameNum = self.sl.value()
 
     def parseData(self):
-        self.uart_thread.start(priority=QThread.HighestPriority)
+        self.uart_thread.run()
 
     def gracefulReset(self):
         self.parseTimer.stop()
