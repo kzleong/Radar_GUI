@@ -2,6 +2,9 @@ import struct
 import logging
 import numpy as np
 import math
+import datetime
+import time
+import csv
 
 # Local File Imports
 from .gui_common import NUM_CLASSES_IN_CLASSIFIER, sphericalToCartesianPointCloud
@@ -253,34 +256,60 @@ def parseCompressedSphericalPointCloudTLV(tlvData, tlvLength, outputDict):
 #float        g;
 #float        confidenceLevel;    /*! @brief   Tracker confidence metric*/
 def parseTrackTLV(tlvData, tlvLength, outputDict):
+    # Get the current time in seconds since epoch
+    current_time = time.time()
+
+    # Log data only if at least 1 second has passed since the last log
+    if current_time - last_logged_time < 1:
+        return last_logged_time  # Return the previous log time without doing anything
+
     targetStruct = 'I27f'
     targetSize = struct.calcsize(targetStruct)
     numDetectedTargets = int(tlvLength/targetSize)
     targets = np.empty((numDetectedTargets,16))
-    for i in range(numDetectedTargets):
-        try:
-            targetData = struct.unpack(targetStruct,tlvData[:targetSize])
-        except:
-            log.error('Target TLV parsing failed')
-            outputDict['numDetectedTracks'], outputDict['trackData'] = 0, targets
 
-        targets[i,0] = targetData[0] # Target ID
-        targets[i,1] = targetData[1] # X Position
-        targets[i,2] = targetData[2] # Y Position
-        targets[i,3] = targetData[3] # Z Position
-        targets[i,4] = targetData[4] # X Velocity
-        targets[i,5] = targetData[5] # Y Velocity
-        targets[i,6] = targetData[6] # Z Velocity
-        targets[i,7] = targetData[7] # X Acceleration
-        targets[i,8] = targetData[8] # Y Acceleration
-        targets[i,9] = targetData[9] # Z Acceleration
-        targets[i,10] = targetData[26] # G
-        targets[i,11] = targetData[27] # Confidence Level
-        
-        # Throw away EC
-        tlvData = tlvData[targetSize:]
-    outputDict['numDetectedTracks'], outputDict['trackData'] = numDetectedTargets, targets
-    print(f"People count: {numDetectedTargets}")
+    try:
+        # Open the CSV file in append mode
+        csv_file = "people_count.csv"
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=["Timestamp", "People count"])
+
+            # Write the header only if the file is empty
+            if file.tell() == 0:
+                writer.writeheader()
+            for i in range(numDetectedTargets):
+                try:
+                    targetData = struct.unpack(targetStruct,tlvData[:targetSize])
+                except:
+                    log.error('Target TLV parsing failed')
+                    outputDict['numDetectedTracks'], outputDict['trackData'] = 0, targets
+
+                targets[i,0] = targetData[0] # Target ID
+                targets[i,1] = targetData[1] # X Position
+                targets[i,2] = targetData[2] # Y Position
+                targets[i,3] = targetData[3] # Z Position
+                targets[i,4] = targetData[4] # X Velocity
+                targets[i,5] = targetData[5] # Y Velocity
+                targets[i,6] = targetData[6] # Z Velocity
+                targets[i,7] = targetData[7] # X Acceleration
+                targets[i,8] = targetData[8] # Y Acceleration
+                targets[i,9] = targetData[9] # Z Acceleration
+                targets[i,10] = targetData[26] # G
+                targets[i,11] = targetData[27] # Confidence Level
+
+                # Throw away EC
+                tlvData = tlvData[targetSize:]
+            outputDict['numDetectedTracks'], outputDict['trackData'] = numDetectedTargets, targets
+
+            # Get the current timestamp
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Write the timestamp and numDetectedTargets to the CSV
+            writer.writerow({"Timestamp": timestamp, "People count": numDetectedTargets})
+
+            print(f"People count: {numDetectedTargets}")
+    except Exception as e:
+        print(f"Error writing to CSV: {e}")
 
 # Decode 2D People Counting Target List TLV
 # 2D Struct format

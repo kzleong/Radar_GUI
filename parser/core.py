@@ -65,7 +65,7 @@ class Core:
         self.cachedData = CachedDataType()
 
         self.device = "xWR6843"
-        self.demo = DEMO_OOB_x843
+        self.demo = DEMO_3D_PEOPLE_TRACKING
 
         self.frameTime = 50
         self.parser = UARTParser(type="DoubleCOMPort")
