@@ -256,13 +256,6 @@ def parseCompressedSphericalPointCloudTLV(tlvData, tlvLength, outputDict):
 #float        g;
 #float        confidenceLevel;    /*! @brief   Tracker confidence metric*/
 def parseTrackTLV(tlvData, tlvLength, outputDict):
-    # Get the current time in seconds since epoch
-    current_time = time.time()
-
-    # Log data only if at least 1 second has passed since the last log
-    if current_time - last_logged_time < 1:
-        return last_logged_time  # Return the previous log time without doing anything
-
     targetStruct = 'I27f'
     targetSize = struct.calcsize(targetStruct)
     numDetectedTargets = int(tlvLength/targetSize)
